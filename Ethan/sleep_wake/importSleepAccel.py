@@ -70,7 +70,8 @@ def import_sleep_accel(path, id):
         epoch_label = label_values[label_t == epoch_end]
 
         # Discard data if truncated epoch
-        if len(epoch_accel_x) < 1500 or len(epoch_hr_values) < 4:
+        if len(epoch_accel_x) < 1490 or len(epoch_hr_values) < 4:
+            # print("discarding, length was ", len(epoch_accel_x), len(epoch_hr_values))
             continue
 
         if not (epoch_label.size > 0):
@@ -78,8 +79,14 @@ def import_sleep_accel(path, id):
         else:
             epoch_label = int(epoch_label[0])
         
-        accelerometer_epochs.append((epoch_accel_x[0:1500], epoch_accel_y[0:1500], epoch_accel_z[0:1500]))
+        accelerometer_epochs.append((epoch_accel_x[0:1490], epoch_accel_y[0:1490], epoch_accel_z[0:1490]))
         heart_rate_epochs.append(epoch_hr_values)
         sleep_labels.append(epoch_label)
-
     return accelerometer_epochs, heart_rate_epochs, sleep_labels
+
+if __name__ == "__main__":
+    # Example usage
+    path = "../Data/SleepAccel/"
+    id = "8686948"  # Example subject ID
+    accel_epochs, hr_epochs, sleep_labels = import_sleep_accel(path, id)
+    print(f"Imported {len(accel_epochs)} epochs for subject ID {id}.")
