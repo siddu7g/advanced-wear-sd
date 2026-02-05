@@ -1,11 +1,11 @@
 import numpy as np
 import pandas as pd
 
-def import_sleep_accel(path, id):
+def import_sleep_accel(path, id, epoch_length=30, verbose=False):
     """
     Imports sleep data from the SleepAccel dataset for a given subject ID.
 
-    The output data is separated into 30-second epochs, with each epoch containing
+    The output data is separated into epochs of length `epoch_length` seconds, with each epoch containing
     heart rate, raw accelerometer data, and sleep stage information.
 
     Parameters:
@@ -36,25 +36,25 @@ def import_sleep_accel(path, id):
     # Get the start time using the later start time of accel_t or hr_t
     start_time = max(accel_t[0], hr_t[0])
 
-    #Round the start time up to the nearest 30-second epoch
-    start_time = start_time + (30 - (start_time % 30))
+    #Round the start time up to the nearest epoch
+    start_time = start_time + (epoch_length - (start_time % epoch_length))
 
     # Get the end time using the earlier end time of accel_t or hr_t
     end_time = min(accel_t[-1], hr_t[-1])
 
-    # Round the end time down to the nearest 30-second epoch
-    end_time = end_time - (end_time % 30)
+    # Round the end time down to the nearest epoch
+    end_time = end_time - (end_time % epoch_length)
 
-    # Separate data into 30-second epochs
-    num_epochs = int((end_time - start_time) // 30)
+    # Separate data into epochs
+    num_epochs = int((end_time - start_time) // epoch_length)
 
     accelerometer_epochs = []
     heart_rate_epochs = []
     sleep_labels = []
 
     for epoch in range(num_epochs):
-        epoch_start = start_time + epoch * 30
-        epoch_end = epoch_start + 30
+        epoch_start = start_time + epoch * epoch_length
+        epoch_end = epoch_start + epoch_length
 
         # Get accelerometer data for this epoch
         epoch_accel_mask = (accel_t >= epoch_start) & (accel_t < epoch_end)
@@ -69,9 +69,14 @@ def import_sleep_accel(path, id):
         # Get the sleep label for this epoch
         epoch_label = label_values[label_t == epoch_end]
 
+        # The length should be long enought to resample at 30 Hz
+        min_accel_length = 50 * epoch_length - 40
+        min_hr_length = epoch_length // 7
         # Discard data if truncated epoch
-        if len(epoch_accel_x) < 1490 or len(epoch_hr_values) < 4:
-            # print("discarding, length was ", len(epoch_accel_x), len(epoch_hr_values))
+        if len(epoch_accel_x) < min_accel_length or len(epoch_hr_values) < min_hr_length:
+
+            if verbose: 
+                print(f"discarding epoch {epoch}, length was {len(epoch_accel_x)}, {len(epoch_hr_values)}")
             continue
 
         if not (epoch_label.size > 0):
@@ -88,5 +93,5 @@ if __name__ == "__main__":
     # Example usage
     path = "../Data/SleepAccel/"
     id = "8686948"  # Example subject ID
-    accel_epochs, hr_epochs, sleep_labels = import_sleep_accel(path, id)
+    accel_epochs, hr_epochs, sleep_labels = import_sleep_accel(path, id, epoch_length=15, verbose=True)
     print(f"Imported {len(accel_epochs)} epochs for subject ID {id}.")
