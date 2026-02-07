@@ -16,6 +16,7 @@
         @"delta_seconds": @(self.deltaSeconds),   // device-relative
         @"source": self.source,
         @"datatype": @(self.datatype),
+        @"segment_id": @(self.segmentId),
         @"motion": @{
             @"x": @(self.x),
             @"y": @(self.y),
@@ -26,12 +27,13 @@
 
 - (NSString *)toCSV {
     return [NSString stringWithFormat:
-        @"%@,%.6f,%.6f,%@,%ld,%ld,%ld,%ld\n",
+        @"%@,%.6f,%.6f,%@,%ld,%ld,%ld,%ld,%ld\n",
         self.deviceId,
         self.timestamp,
         self.deltaSeconds,
         self.source,
         (long)self.datatype,
+        (long)self.segmentId,
         (long)self.x,
         (long)self.y,
         (long)self.speedThrow
@@ -39,3 +41,4 @@
 }
 
 @end
+
