@@ -17,6 +17,8 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, assign) NSTimeInterval timestamp;
 @property (nonatomic, copy) NSString *source;
 @property (nonatomic, assign) NSInteger datatype;
+@property (nonatomic, assign) NSInteger segmentId;  
+
 
 @property (nonatomic, assign) NSInteger x;
 @property (nonatomic, assign) NSInteger y;
@@ -28,3 +30,4 @@ NS_ASSUME_NONNULL_BEGIN
 @end
 
 NS_ASSUME_NONNULL_END
+
