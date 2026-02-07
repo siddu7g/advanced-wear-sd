@@ -15,6 +15,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 
 @property (nonatomic, assign) BOOL isFirstPaired; // 是否为首次连接配对(首次连接有震动)
+@property (nonatomic, readonly) NSTimer *heartbeatTimer;
+@property (nonatomic, readonly) NSInteger motionSegmentId;
 
 //@property (nonatomic, strong) RACReplaySubject <CEDeviceInfoModel *>*deviceInfoSubject;
 //@property (nonatomic, strong) RACReplaySubject <NSNumber *>*connectionStatusSubject;
