@@ -25,6 +25,17 @@ static const NSInteger DATA_TYPE_RAW250 = 250;
 @property (nonatomic, strong) NSMutableArray<MotionRecord *> *motionBuffer;
 @property (nonatomic, assign) NSTimeInterval lastFlushTs;
 
+// Debug throttling
+@property (nonatomic, assign) NSUInteger motionSampleCounter;
+
+// Segmenting
+@property (nonatomic, assign) NSInteger motionSegmentId;
+
+// BLE heartbeat
+@property (nonatomic, strong) NSTimer *heartbeatTimer;
+
+- (void) sendHeartbeat;
+
 
 // Cloud / storage helpers
 - (void)sendPayloadToCloud:(NSDictionary *)payload;
@@ -72,6 +83,7 @@ static const NSInteger DATA_TYPE_RAW250 = 250;
 //        [self initSubject];
         self.motionBuffer = [NSMutableArray array];
         self.lastFlushTs = 0;
+        self.motionSegmentId =  0;
     }
     return self;
 }
@@ -157,6 +169,7 @@ static const NSInteger DATA_TYPE_RAW250 = 250;
     
     record.source = @"ios_sdk";
     record.datatype = 144;
+    record.segmentId = self.motionSegmentId;
 
     record.x = [motion[@"x"] integerValue];
     record.y = [motion[@"y"] integerValue];
@@ -185,10 +198,15 @@ static const NSInteger DATA_TYPE_RAW250 = 250;
             NSDictionary *motion = data[@"data"];
             if (![motion isKindOfClass:[NSDictionary class]]) break;
 
-            NSLog(@"[MOTION144] x=%@ y=%@ speed_throw=%@",
-                  motion[@"x"],
-                  motion[@"y"],
-                  motion[@"speed_throw"]);
+            self.motionSampleCounter++;
+
+            if (self.motionSampleCounter % 3000 == 0) { // ~1 min @ ~50 Hz
+                NSLog(@"[MOTION144] sample x=%@ y=%@ speed=%@ (segment=%ld)",
+                      motion[@"x"],
+                      motion[@"y"],
+                      motion[@"speed_throw"],
+                      (long)self.motionSegmentId);
+            }
 
             MotionRecord *record = [self normalizeMotion144:data];
             if (!record) break;
@@ -200,7 +218,7 @@ static const NSInteger DATA_TYPE_RAW250 = 250;
                 self.lastFlushTs = now;
             }
 
-            if (now - self.lastFlushTs >= 2.0) {   // batch window (2s)
+            if (now - self.lastFlushTs >= 60.0) {   // batch window (60s)
                 [self flushMotionBatch];
                 self.lastFlushTs = now;
             }
@@ -213,9 +231,8 @@ static const NSInteger DATA_TYPE_RAW250 = 250;
             NSData *payload = data[@"UnknownBody"];
             if (![payload isKindOfClass:[NSData class]]) break;
 
-            NSLog(@"[RAW250] len=%lu hex=%@",
-                  (unsigned long)payload.length,
-                  [self hexStringFromData:payload]);
+            NSLog(@"[RAW250] packet len=%lu",
+                  (unsigned long)payload.length);
             break;
         }
 
@@ -258,7 +275,7 @@ static const NSInteger DATA_TYPE_RAW250 = 250;
     }
 
     NSString *header =
-    @"device_id,timestamp,delta_seconds,source,datatype,x,y,speed_throw\n";
+    @"device_id,timestamp,delta_seconds,source,datatype,segment_id,x,y,speed_throw\n";
 
     [self appendLine:csvBlock
           withHeader:header
@@ -310,10 +327,22 @@ static const NSInteger DATA_TYPE_RAW250 = 250;
 
     if (status == ProductStatus_disconnected ||
         status == ProductStatus_powerOff) {
-        [self flushMotionBatch]; // don't lose data
+
+        NSLog(@"[BLE] Disconnected — closing segment %ld",
+              (long)self.motionSegmentId);
+        
+        [self flushMotionBatch];
+
         self.motionSessionActive = NO;
         self.motionSessionStartTs = 0;
         self.lastFlushTs = 0;
+        
+        self.motionSampleCounter = 0;
+        
+        [self.heartbeatTimer invalidate];
+        self.heartbeatTimer = nil;
+
+        self.motionSegmentId++;   // 🔥 critical
     }
 }
 
@@ -355,13 +384,50 @@ static const NSInteger DATA_TYPE_RAW250 = 250;
             motion.onoff = 1;
             [[CEProductK6 shareInstance] sendCmdToDevice:motion complete:nil];
             // Start motion session clock
+            
             self.motionSessionStartTs = [[NSDate date] timeIntervalSince1970];
             self.motionSessionActive = YES;
+            
+            [self startHeartbeat];
 
             [self stopSportMode];
         });
     }];
 }
+
+#pragma mark - BLE Heartbeat
+
+- (void)startHeartbeat {
+    if (self.heartbeatTimer) return;
+    
+    self.heartbeatTimer =
+    [NSTimer scheduledTimerWithTimeInterval:20.0
+                                     target:self
+                                   selector:@selector(sendHeartbeat)
+                                   userInfo:nil
+                                    repeats:YES];
+    
+    NSLog(@"[BLE] Heartbeat started");
+}
+    
+    -(void)sendHeartbeat {
+        // Lightweight command already supported by device
+        CE_SensorCmd *ping = [[CE_SensorCmd alloc] init];
+        ping.onoff = 1;
+        
+        [[CEProductK6 shareInstance] sendCmdToDevice:ping complete:nil];
+        
+        NSLog(@"[BLE] Heartbeat ping sent");
+    }
+    
+    - (void)stopHeartbeat {
+        [self.heartbeatTimer invalidate];
+        self.heartbeatTimer = nil;
+        NSLog(@"[BLE] Heartbeat stopped");
+    }
+
+
+
 #pragma mark - Utilities
 - (NSString *)hexStringFromData:(NSData *)data {
     const uint8_t *bytes = data.bytes;
