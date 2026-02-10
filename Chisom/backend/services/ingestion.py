@@ -16,6 +16,7 @@ async def process_file(file: UploadFile):
             decoded = content.decode("utf-8")
             csv_reader = csv.DictReader(io.StringIO(decoded))
             rows = list(csv_reader)
+            print(f"Received {len(rows)} rows from {file.filename}")
             return {
                 "status": "received CSV",
                 "filename": file.filename,
@@ -30,6 +31,7 @@ async def process_file(file: UploadFile):
             decoded = content.decode("utf-8")
             data = json.loads(decoded)
             count = len(data) if isinstance(data, list) else 1
+            print(f"Received {count} records from {file.filename}")
             return {
                 "status": "received JSON",
                 "filename": file.filename,
