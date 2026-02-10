@@ -1,7 +1,8 @@
-from fastapi import UploadFile,HTTPException
 import csv
 import io
 import json
+from fastapi import UploadFile,HTTPException
+from services.storage import save_data
 
 async def process_file(file: UploadFile):
     if not file.filename:
@@ -16,6 +17,7 @@ async def process_file(file: UploadFile):
             decoded = content.decode("utf-8")
             csv_reader = csv.DictReader(io.StringIO(decoded))
             rows = list(csv_reader)
+            save_data("csv_uploads", rows)
             print(f"Received {len(rows)} rows from {file.filename}")
             return {
                 "status": "received CSV",
@@ -30,7 +32,9 @@ async def process_file(file: UploadFile):
         try:
             decoded = content.decode("utf-8")
             data = json.loads(decoded)
-            count = len(data) if isinstance(data, list) else 1
+            records = data if isinstance(data, list) else [data]
+            save_data("json_uploads", records)
+            count = len(records)
             print(f"Received {count} records from {file.filename}")
             return {
                 "status": "received JSON",
